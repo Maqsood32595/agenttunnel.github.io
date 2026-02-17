@@ -1,0 +1,20 @@
+{
+    "name": "agenttunnel",
+    "version": "1.0.0",
+    "description": "GitOps AI Agent Policy Enforcer - Zero Trust Security Layer",
+    "main": "gateway.js",
+    "scripts": {
+        "start": "node gateway.js"
+    },
+    "keywords": [
+        "ai",
+        "security",
+        "zero-trust",
+        "gitops",
+        "agent",
+        "tunnel"
+    ],
+    "author": "Maqsood",
+    "license": "MIT",
+    "dependencies": {}
+}

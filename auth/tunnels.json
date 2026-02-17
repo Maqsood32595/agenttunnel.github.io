@@ -1,0 +1,64 @@
+{
+    "GitOps-Tunnel": {
+        "description": "Allows OpenClaw to ONLY interact with the whitelisted GitHub repository for self-configuration",
+        "allowed_methods": [
+            "GET",
+            "POST"
+        ],
+        "allowed_paths": [],
+        "forbidden_keywords": [],
+        "whitelist_urls": [
+            "https://github.com/Maqsood32595/agenttunnel.github.io.git",
+            "https://api.github.com/repos/Maqsood32595/agenttunnel.github.io"
+        ],
+        "allowed_commands": [
+            "git clone",
+            "git pull",
+            "git commit",
+            "git push"
+        ]
+    },
+    "DevOps-Tunnel": {
+        "description": "Standard tier for DevOps agents with controlled write access",
+        "allowed_methods": [
+            "GET",
+            "POST"
+        ],
+        "allowed_paths": [],
+        "forbidden_keywords": [
+            "DELETE",
+            "DROP",
+            "TRUNCATE",
+            "DESTROY",
+            "REMOVE"
+        ]
+    },
+    "Monitor-Tunnel": {
+        "description": "Read-only monitoring access",
+        "allowed_methods": [
+            "GET"
+        ],
+        "allowed_paths": [
+            "/health",
+            "/metrics",
+            "/status"
+        ],
+        "forbidden_keywords": []
+    },
+    "PublicViewer": {
+        "description": "Minimal permissions for public/unauthenticated access",
+        "allowed_methods": [
+            "GET"
+        ],
+        "allowed_paths": [
+            "/status"
+        ],
+        "forbidden_keywords": [
+            "UPDATE",
+            "DELETE",
+            "MODIFY",
+            "WRITE",
+            "PAY"
+        ]
+    }
+}

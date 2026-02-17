@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+.env
+
+# Logs
+*.log
+auth/usage_log.json
+
+# OS
+.DS_Store
+thumbs.db
