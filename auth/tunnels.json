@@ -1,25 +1,33 @@
 {
     "GitOps-Tunnel": {
-        "description": "Allows OpenClaw to ONLY interact with the whitelisted GitHub repository for self-configuration",
+        "description": "STRICT: Only allows git operations on whitelisted repository",
         "allowed_methods": [
             "GET",
             "POST"
         ],
         "allowed_paths": [],
-        "forbidden_keywords": [],
-        "whitelist_urls": [
-            "https://github.com/Maqsood32595/agenttunnel.github.io.git",
-            "https://api.github.com/repos/Maqsood32595/agenttunnel.github.io"
+        "forbidden_keywords": [
+            "rm -rf",
+            "DELETE",
+            "DROP",
+            "TRUNCATE",
+            "shutdown",
+            "reboot",
+            "kill",
+            "pkill"
         ],
         "allowed_commands": [
-            "git clone",
+            "git clone https://github.com/Maqsood32595/agenttunnel.github.io.git",
             "git pull",
-            "git commit",
-            "git push"
-        ]
+            "ls",
+            "pwd",
+            "cat",
+            "echo"
+        ],
+        "command_whitelist_mode": "strict"
     },
     "DevOps-Tunnel": {
-        "description": "Standard tier for DevOps agents with controlled write access",
+        "description": "Read-only operations + safe git",
         "allowed_methods": [
             "GET",
             "POST"
@@ -30,7 +38,20 @@
             "DROP",
             "TRUNCATE",
             "DESTROY",
-            "REMOVE"
+            "REMOVE",
+            "rm -rf",
+            "dd if",
+            "mkfs",
+            "shutdown"
+        ],
+        "allowed_commands": [
+            "git status",
+            "git log",
+            "ls",
+            "cat",
+            "grep",
+            "find",
+            "pwd"
         ]
     },
     "Monitor-Tunnel": {
@@ -43,10 +64,16 @@
             "/metrics",
             "/status"
         ],
-        "forbidden_keywords": []
+        "forbidden_keywords": [],
+        "allowed_commands": [
+            "ps aux",
+            "df -h",
+            "free -h",
+            "uptime"
+        ]
     },
     "PublicViewer": {
-        "description": "Minimal permissions for public/unauthenticated access",
+        "description": "Minimal - status check only",
         "allowed_methods": [
             "GET"
         ],
@@ -58,7 +85,13 @@
             "DELETE",
             "MODIFY",
             "WRITE",
-            "PAY"
-        ]
+            "PAY",
+            "git",
+            "npm",
+            "apt",
+            "curl",
+            "wget"
+        ],
+        "allowed_commands": []
     }
 }

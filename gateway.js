@@ -75,22 +75,47 @@ async function validateTunnel(req, tunnelName) {
         }
     }
 
-    // 3. Check Keywords (Deep Inspection for POST/PUT)
-    if (tunnel.forbidden_keywords.length > 0 && (req.method === 'POST' || req.method === 'PUT')) {
+    // 3. Check Command Whitelist (for /validate endpoint)
+    if (req.method === 'POST' || req.method === 'PUT') {
         return new Promise((resolve) => {
             let body = [];
             req.on('data', (chunk) => body.push(chunk));
             req.on('end', () => {
                 const bodyBuffer = Buffer.concat(body);
-                const bodyStr = bodyBuffer.toString().toLowerCase();
-                req.rawBody = bodyBuffer; // Save ORIGINAL
+                const bodyStr = bodyBuffer.toString();
+                req.rawBody = bodyBuffer;
 
-                for (const keyword of tunnel.forbidden_keywords) {
-                    if (bodyStr.includes(keyword.toLowerCase())) {
-                        resolve({ allowed: false, error: `Keyword '${keyword}' forbidden in tunnel ${tunnelName}` });
+                let payload;
+                try {
+                    payload = JSON.parse(bodyStr);
+                } catch (e) {
+                    resolve({ allowed: false, error: "Invalid JSON payload" });
+                    return;
+                }
+
+                const command = payload.command || payload.url || '';
+
+                // Check forbidden keywords
+                if (tunnel.forbidden_keywords && tunnel.forbidden_keywords.length > 0) {
+                    for (const keyword of tunnel.forbidden_keywords) {
+                        if (command.toLowerCase().includes(keyword.toLowerCase())) {
+                            resolve({ allowed: false, error: `Forbidden keyword '${keyword}' detected` });
+                            return;
+                        }
+                    }
+                }
+
+                // Check command whitelist (strict mode)
+                if (tunnel.allowed_commands && tunnel.command_whitelist_mode === 'strict') {
+                    const isAllowed = tunnel.allowed_commands.some(allowed =>
+                        command.startsWith(allowed) || command === allowed
+                    );
+                    if (!isAllowed) {
+                        resolve({ allowed: false, error: `Command '${command}' not in whitelist` });
                         return;
                     }
                 }
+
                 resolve({ allowed: true });
             });
             req.on('error', (err) => resolve({ allowed: false, error: "Body read error" }));
