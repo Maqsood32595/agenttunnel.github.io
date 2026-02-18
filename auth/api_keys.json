@@ -1,53 +1,24 @@
 {
-    "keys": {
-        "demo_tier1_abc123": {
-            "name": "Demo Client - Tier 1",
-            "tier": "tier1",
-            "tunnel": "PublicViewer",
-            "dailyLimit": 10000,
-            "createdAt": "2026-02-14T04:00:00Z",
-            "active": true
-        },
-        "pilot_tier2_xyz789": {
-            "name": "Pilot Client - Tier 2",
-            "tier": "tier2",
-            "tunnel": "DevOps-Tunnel",
-            "dailyLimit": 100000,
-            "createdAt": "2026-02-14T04:00:00Z",
-            "active": true
-        },
-        "enterprise_tier3_ent456": {
-            "name": "Enterprise Client - Tier 3",
-            "tier": "tier3",
-            "tunnel": "SuperAdmin",
-            "dailyLimit": 1000000,
-            "createdAt": "2026-02-14T04:00:00Z",
-            "active": true
-        },
-        "monitor_agent_007": {
-            "name": "Datadog Agent",
-            "tier": "tier1",
-            "tunnel": "Monitor-Tunnel",
-            "dailyLimit": 50000,
-            "createdAt": "2026-02-17T00:00:00Z",
-            "active": true
-        }
+    "orchestrator_key_openclaw": {
+        "name": "OpenClaw Orchestrator",
+        "tier": "orchestrator",
+        "tunnel": null,
+        "dailyLimit": 999999,
+        "createdAt": "2026-02-19T00:00:00Z",
+        "note": "UNCAGED - Full access to create/manage tunnels and worker agents"
     },
-    "tiers": {
-        "tier1": {
-            "name": "Starter",
-            "dailyLimit": 10000,
-            "price": "$29/month"
-        },
-        "tier2": {
-            "name": "Professional",
-            "dailyLimit": 100000,
-            "price": "$199/month"
-        },
-        "tier3": {
-            "name": "Enterprise",
-            "dailyLimit": 1000000,
-            "price": "Custom"
-        }
+    "pilot_tier2_xyz789": {
+        "name": "Pilot Client - Tier 2",
+        "tier": "worker",
+        "tunnel": "DevOps-Tunnel",
+        "dailyLimit": 100000,
+        "createdAt": "2026-02-14T04:00:00Z"
+    },
+    "demo_tier1_abc123": {
+        "name": "Demo Client - Tier 1",
+        "tier": "worker",
+        "tunnel": "PublicViewer",
+        "dailyLimit": 1000,
+        "createdAt": "2026-02-14T04:00:00Z"
     }
 }

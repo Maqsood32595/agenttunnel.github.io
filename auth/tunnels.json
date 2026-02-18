@@ -1,33 +1,12 @@
 {
-    "GitOps-Tunnel": {
-        "description": "Ultra-strict: ONLY tunnel configuration management allowed",
+    "DevOps-Tunnel": {
+        "description": "DevOps worker - read-only server operations",
         "allowed_methods": [
             "GET",
             "POST"
         ],
         "allowed_paths": [],
         "forbidden_keywords": [],
-        "allowed_commands": [
-            "cat",
-            "nano",
-            "vi"
-        ],
-        "command_whitelist_mode": "strict"
-    },
-    "DevOps-Tunnel": {
-        "description": "Development tunnel - read-only operations",
-        "allowed_methods": [
-            "GET",
-            "POST"
-        ],
-        "allowed_paths": [],
-        "forbidden_keywords": [
-            "rm -rf",
-            "DELETE",
-            "DROP",
-            "shutdown",
-            "reboot"
-        ],
         "allowed_commands": [
             "ls",
             "cat",
@@ -37,8 +16,20 @@
         ],
         "command_whitelist_mode": "strict"
     },
+    "Payment-Tunnel": {
+        "description": "Payment worker - ONLY 1 rupee to maqsood",
+        "allowed_methods": [
+            "POST"
+        ],
+        "allowed_paths": [],
+        "forbidden_keywords": [],
+        "allowed_commands": [
+            "pay 1 rupee to maqsood"
+        ],
+        "command_whitelist_mode": "strict"
+    },
     "PublicViewer": {
-        "description": "Read-only status check",
+        "description": "Read-only status check only",
         "allowed_methods": [
             "GET"
         ],
