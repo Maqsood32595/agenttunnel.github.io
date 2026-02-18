@@ -1,60 +1,40 @@
 const http = require('http');
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { authenticate } = require('./auth/middleware');
 
 /**
- * 🛡️ AgentTunnel - GitOps AI Agent Policy Enforcer
- * Zero Trust Security Layer for AI Agents
+ * 🛡️ AgentTunnel - Local-Only AI Agent Policy Enforcer
+ * Strict whitelist enforcement - NO external dependencies
  */
 
 const GATEWAY_PORT = 3000;
 const TUNNELS_PATH = path.join(__dirname, 'auth', 'tunnels.json');
-const GITHUB_CONFIG_URL = 'https://raw.githubusercontent.com/Maqsood32595/agenttunnel.github.io/main/auth/tunnels.json';
 let tunnelsCache = null;
 
 function loadTunnels() {
-    // 1. Load local first (fallback)
     if (fs.existsSync(TUNNELS_PATH)) {
         try {
-            tunnelsCache = JSON.parse(fs.readFileSync(TUNNELS_PATH, 'utf8'));
-            console.log("✅ [Gateway] Loaded local tunnels.json");
+            const data = fs.readFileSync(TUNNELS_PATH, 'utf8');
+            tunnelsCache = JSON.parse(data);
+            console.log("✅ [Gateway] Loaded tunnels.json");
         } catch (e) {
-            console.error("❌ [Gateway] Failed to load local tunnels.json", e.message);
+            console.error("❌ [Gateway] Failed to load tunnels.json:", e.message);
+            process.exit(1);
         }
+    } else {
+        console.error("❌ [Gateway] tunnels.json not found!");
+        process.exit(1);
     }
-
-    // 2. Start Polling GitHub (Dynamic Config)
-    pollGitHubConfig();
 }
 
-function pollGitHubConfig() {
-    console.log("🔄 [Gateway] Polling GitHub for tunnel updates...");
-
-    https.get(GITHUB_CONFIG_URL, (res) => {
-        let data = '';
-        res.on('data', (chunk) => data += chunk);
-        res.on('end', () => {
-            if (res.statusCode === 200) {
-                try {
-                    const newConfig = JSON.parse(data);
-                    tunnelsCache = newConfig;
-                    // Also save to disk for persistence
-                    fs.writeFileSync(TUNNELS_PATH, JSON.stringify(newConfig, null, 2));
-                    console.log("✅ [Gateway] Synced rules from GitHub!");
-                } catch (e) {
-                    console.error("❌ [Gateway] Invalid JSON from GitHub");
-                }
-            }
-        });
-    }).on('error', (err) => {
-        console.error("❌ [Gateway] GitHub Network Error:", err.message);
-    });
-
-    // Poll every 60 seconds
-    setTimeout(pollGitHubConfig, 60000);
-}
+// Watch for file changes and reload
+fs.watchFile(TUNNELS_PATH, (curr, prev) => {
+    if (curr.mtime !== prev.mtime) {
+        console.log("🔄 [Gateway] tunnels.json changed, reloading...");
+        loadTunnels();
+    }
+});
 
 async function validateTunnel(req, tunnelName) {
     if (!tunnelsCache) loadTunnels();
@@ -63,7 +43,7 @@ async function validateTunnel(req, tunnelName) {
 
     // 1. Check Method
     if (!tunnel.allowed_methods.includes("*") && !tunnel.allowed_methods.includes(req.method)) {
-        return { allowed: false, error: `Method ${req.method} not allowed in tunnel ${tunnelName}` };
+        return { allowed: false, error: `Method ${req.method} not allowed` };
     }
 
     // 2. Check Path (if specified)
@@ -71,11 +51,11 @@ async function validateTunnel(req, tunnelName) {
         const cleanUrl = req.url.split('?')[0];
         const isPathAllowed = tunnel.allowed_paths.some(p => cleanUrl.startsWith(p));
         if (!isPathAllowed) {
-            return { allowed: false, error: `Path ${cleanUrl} not allowed in tunnel ${tunnelName}` };
+            return { allowed: false, error: `Path ${cleanUrl} not allowed` };
         }
     }
 
-    // 3. Check Command Whitelist (for /validate endpoint)
+    // 3. Command Validation (for POST/PUT with body)
     if (req.method === 'POST' || req.method === 'PUT') {
         return new Promise((resolve) => {
             let body = [];
@@ -95,24 +75,34 @@ async function validateTunnel(req, tunnelName) {
 
                 const command = payload.command || payload.url || '';
 
-                // Check forbidden keywords
+                // STRICT MODE ENFORCEMENT (Primary Check)
+                if (tunnel.command_whitelist_mode === 'strict') {
+                    if (!tunnel.allowed_commands || tunnel.allowed_commands.length === 0) {
+                        resolve({ allowed: false, error: "No commands allowed in strict mode" });
+                        return;
+                    }
+
+                    // Check if command matches ANY allowed command
+                    const isAllowed = tunnel.allowed_commands.some(allowed => {
+                        const cmd = command.trim();
+                        const allowedCmd = allowed.trim();
+                        // Exact match OR starts with allowed command + space
+                        return cmd === allowedCmd || cmd.startsWith(allowedCmd + ' ');
+                    });
+
+                    if (!isAllowed) {
+                        resolve({ allowed: false, error: `Command '${command}' not in whitelist` });
+                        return;
+                    }
+                }
+
+                // Forbidden keywords check (secondary)
                 if (tunnel.forbidden_keywords && tunnel.forbidden_keywords.length > 0) {
                     for (const keyword of tunnel.forbidden_keywords) {
                         if (command.toLowerCase().includes(keyword.toLowerCase())) {
                             resolve({ allowed: false, error: `Forbidden keyword '${keyword}' detected` });
                             return;
                         }
-                    }
-                }
-
-                // Check command whitelist (strict mode)
-                if (tunnel.allowed_commands && tunnel.command_whitelist_mode === 'strict') {
-                    const isAllowed = tunnel.allowed_commands.some(allowed =>
-                        command.startsWith(allowed) || command === allowed
-                    );
-                    if (!isAllowed) {
-                        resolve({ allowed: false, error: `Command '${command}' not in whitelist` });
-                        return;
                     }
                 }
 
@@ -146,7 +136,8 @@ function startGateway() {
             res.end(JSON.stringify({
                 status: 'ok',
                 secured: true,
-                gitops: true,
+                gitops: false,
+                mode: 'local-only',
                 tunnels: Object.keys(tunnelsCache || {})
             }));
             return;
@@ -158,7 +149,8 @@ function startGateway() {
             const validation = await validateTunnel(req, tunnelName);
 
             if (!validation.allowed) {
-                console.warn(`🛑 [Gateway] Tunnel Blocked: ${req.client.name} tried ${req.method} ${req.url}`);
+                console.warn(`🛑 [Gateway] BLOCKED: ${req.client.name} tried ${req.method} ${req.url}`);
+                console.warn(`   Reason: ${validation.error}`);
                 res.writeHead(403, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     error: "Access Denied by Tunnel Policy",
@@ -168,7 +160,7 @@ function startGateway() {
             }
 
             // Allow through
-            console.log(`✅ [Gateway] ${req.client.name} (${tunnelName}) -> ${req.method} ${req.url}`);
+            console.log(`✅ [Gateway] ALLOWED: ${req.client.name} (${tunnelName}) -> ${req.method} ${req.url}`);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
                 success: true,
@@ -179,10 +171,11 @@ function startGateway() {
     });
 
     server.listen(GATEWAY_PORT, () => {
-        console.log(`\n🌍 AgentTunnel Active at http://localhost:${GATEWAY_PORT}`);
+        console.log(`\n🌍 AgentTunnel (Local-Only) Active at http://localhost:${GATEWAY_PORT}`);
         console.log(`   - Status: http://localhost:${GATEWAY_PORT}/status`);
         console.log(`   🔒 Security: ENABLED (API Key Required)`);
-        console.log(`   🔄 GitOps: ENABLED (Polling GitHub every 60s)`);
+        console.log(`   📁 Config: ${TUNNELS_PATH}`);
+        console.log(`   🔄 Auto-reload: ENABLED (watches file changes)`);
     });
 }
 

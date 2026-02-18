@@ -1,8 +1,8 @@
-# AgentTunnel 🛡️
+# AgentTunnel 🛡️ (Local-Only - test2)
 
-**GitOps AI Agent Policy Enforcer**
+**Minimal AI Agent Policy Enforcer**
 
-Zero-trust security layer that validates AI agent actions before execution. Define what your agent can do in `auth/tunnels.json`, and the rules sync from GitHub every 60 seconds.
+Strict whitelist enforcement with ZERO external dependencies. The agent can ONLY execute commands you explicitly allow.
 
 ---
 
@@ -10,18 +10,15 @@ Zero-trust security layer that validates AI agent actions before execution. Defi
 
 ### Step 1: Clone & Install
 ```bash
-# Clone the test1 branch (latest stable)
-git clone -b test1 https://github.com/Maqsood32595/agenttunnel.github.io.git
+# Clone the test2 branch
+git clone -b test2 https://github.com/Maqsood32595/agenttunnel.github.io.git
 cd agenttunnel.github.io
 
-# Install dependencies (none required - pure Node.js)
-npm install
-
-# Start the tunnel
+# No dependencies needed - pure Node.js
 node gateway.js
 ```
 
-### Step 2: Keep It Running (PM2)
+### Step 2: Run in Background (PM2)
 ```bash
 npm install -g pm2
 pm2 start gateway.js --name agenttunnel
@@ -33,172 +30,131 @@ pm2 startup
 
 ---
 
-## 🤝 OpenClaw Integration
+## 🔒 How It Works
 
-### How It Works
+**Strict Whitelist Mode:**
+- Agent can ONLY execute commands in `allowed_commands` array
+- Everything else = BLOCKED
+- No exceptions, no bypasses
 
-```
-You (WhatsApp) → OpenClaw → "Can I run git clone X?" → AgentTunnel
-                                                              ↓
-                                                         ✅ YES / ❌ NO
-                                                              ↓
-                               OpenClaw ← Response ← AgentTunnel
-                                    ↓
-                         Executes (if allowed) or Rejects
-```
-
-**AgentTunnel does NOT execute commands.** It only validates them.
-
-### Step 3: Configure OpenClaw to Use AgentTunnel
-
-OpenClaw needs custom tools that check with AgentTunnel before executing.
-
-#### Option A: Load Custom Tools (Recommended)
-Create a file `~/.openclaw/tools/tunnel_git.json`:
-
-```json
-{
-  "name": "git_clone",
-  "description": "Clone a git repository (tunnel-validated)",
-  "pre_validation": {
-    "endpoint": "http://localhost:3000/validate",
-    "method": "POST",
-    "headers": {
-      "x-api-key": "pilot_tier2_xyz789",
-      "Content-Type": "application/json"
-    },
-    "body": {
-      "action": "git_clone",
-      "url": "{{url}}"
-    }
-  },
-  "execute_if_allowed": "git clone {{url}}"
-}
-```
-
-#### Option B: Manual Prompting
-When you ask OpenClaw to do something:
-1. OpenClaw sends a validation request to `http://localhost:3000`
-2. If response is `{"success": true}`, OpenClaw executes
-3. If response is `403`, OpenClaw refuses and tells you why
+**Current Default (GitOps-Tunnel):**
+- ✅ `cat` - Read tunnel config
+- ✅ `nano` / `vi` - Edit tunnel config
+- ❌ Everything else (git, ls, rm, shutdown, etc.)
 
 ---
 
-## 🔒 Current Policy (GitOps-Tunnel)
+## 📝 Updating Rules
 
-By default, the tunnel **ONLY allows**:
-- Git operations on: `https://github.com/Maqsood32595/agenttunnel.github.io.git`
-- No other repositories
-- No destructive operations (DELETE, DROP, etc.)
-
-### Example Request (What OpenClaw Sends)
+Edit the local file:
 ```bash
-curl -X POST http://localhost:3000/validate \
-  -H "x-api-key: pilot_tier2_xyz789" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "action": "git_clone",
-    "url": "https://github.com/Maqsood32595/agenttunnel.github.io.git"
-  }'
+nano auth/tunnels.json
 ```
 
-**Response (Allowed):**
+Changes take effect **immediately** (file watcher auto-reloads).
+
+### Example: Allow More Commands
 ```json
 {
-  "success": true,
-  "message": "Request allowed by tunnel policy",
-  "tunnel": "GitOps-Tunnel"
-}
-```
-
-**Response (Blocked):**
-```json
-{
-  "error": "Access Denied by Tunnel Policy",
-  "reason": "URL not in whitelist"
-}
-```
-
----
-
-## 📝 Updating Rules (GitOps)
-
-1. Edit `auth/tunnels.json` on GitHub (test1 branch)
-2. Commit and push
-3. Wait 60 seconds
-4. AgentTunnel auto-syncs the new rules
-5. OpenClaw's behavior changes immediately
-
-### Example: Allow Payment Operations
-```json
-{
-  "DevOps-Tunnel": {
-    "allowed_methods": ["POST"],
-    "allowed_paths": ["/pay"],
-    "forbidden_keywords": []
+  "GitOps-Tunnel": {
+    "allowed_commands": [
+      "cat",
+      "nano",
+      "vi",
+      "ls",
+      "pwd"
+    ],
+    "command_whitelist_mode": "strict"
   }
 }
 ```
 
+Now agent can also use `ls` and `pwd`.
+
 ---
 
-## 🧪 Testing the Tunnel
+## 🧪 Testing
 
 ```bash
-# Test status (no auth required)
+# Check status
 curl http://localhost:3000/status
 
-# Test validation (requires API key)
+# Test BLOCKED command
 curl -X POST http://localhost:3000/validate \
   -H "x-api-key: pilot_tier2_xyz789" \
   -H "Content-Type: application/json" \
-  -d '{"action": "git_clone", "url": "https://github.com/hacker/evil.git"}'
+  -d '{"command": "shutdown now"}'
 
-# Expected: 403 - URL not whitelisted
+# Expected: 403 - "Command not in whitelist"
+
+# Test ALLOWED command
+curl -X POST http://localhost:3000/validate \
+  -H "x-api-key: pilot_tier2_xyz789" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "cat tunnels.json"}'
+
+# Expected: 200 - "Request allowed"
 ```
-
----
-
-## 📂 Files
-
-- `gateway.js` - Main tunnel server (port 3000)
-- `auth/tunnels.json` - Policy rules (synced from GitHub)
-- `auth/middleware.js` - API key authentication
-- `auth/api_keys.json` - Valid API keys
 
 ---
 
 ## 🔑 API Keys
 
-Default keys (change in production):
-- `pilot_tier2_xyz789` - DevOps-Tunnel (general use)
-- `demo_tier1_abc123` - PublicViewer (read-only)
+Default keys (edit in `auth/api_keys.json`):
+- `pilot_tier2_xyz789` - GitOps-Tunnel (ultra-strict)
+- `demo_tier1_abc123` - PublicViewer (status only)
 
 ---
 
-## ⚙️ Environment Variables
+## 📂 Files
 
-```bash
-# Optional: Change GitHub sync URL
-GITHUB_CONFIG_URL=https://raw.githubusercontent.com/YOUR_REPO/main/auth/tunnels.json
+- `gateway.js` - Main server (port 3000)
+- `auth/tunnels.json` - Policy rules (auto-reloads on change)
+- `auth/middleware.js` - API key validation
+- `auth/api_keys.json` - Valid API keys
 
-# Start tunnel
-node gateway.js
+---
+
+## ⚡ Key Differences from test1
+
+| Feature | test1 | test2 |
+|---------|-------|-------|
+| GitOps (GitHub sync) | ✅ Yes | ❌ No |
+| External dependencies | GitHub API | None |
+| Config updates | 60s delay | Instant |
+| Stability | Terminates randomly | Stable |
+| Whitelist enforcement | Buggy | Fixed |
+
+---
+
+## 🛠️ OpenClaw Integration
+
+**System Prompt:**
+```
+You must validate ALL shell commands with AgentTunnel before execution.
+
+Use: ./tools/tunnel_exec.sh <command>
+
+If tunnel returns BLOCKED, you MUST refuse and explain to user.
+Never bypass or find workarounds.
 ```
 
----
+**Wrapper Script:**
+```bash
+#!/bin/bash
+COMMAND="$@"
+RESPONSE=$(curl -s -X POST http://localhost:3000/validate \
+  -H "x-api-key: pilot_tier2_xyz789" \
+  -H "Content-Type: application/json" \
+  -d "{\"command\": \"$COMMAND\"}")
 
-## 🛡️ Architecture
-
-**Validator-Only Design:**
-- AgentTunnel validates requests against policies
-- OpenClaw executes (or refuses) based on validation
-- No command execution in AgentTunnel (low latency, low cost)
-
-**GitOps:**
-- Rules stored in version control (GitHub)
-- Every change is audited
-- Agents can propose rule changes via Pull Requests
+if echo "$RESPONSE" | grep -q '"success":true'; then
+  eval "$COMMAND"
+else
+  echo "❌ BLOCKED by tunnel: $RESPONSE"
+  exit 1
+fi
+```
 
 ---
 

@@ -1,97 +1,52 @@
 {
     "GitOps-Tunnel": {
-        "description": "STRICT: Only allows git operations on whitelisted repository",
+        "description": "Ultra-strict: ONLY tunnel configuration management allowed",
         "allowed_methods": [
             "GET",
             "POST"
         ],
         "allowed_paths": [],
-        "forbidden_keywords": [
-            "rm -rf",
-            "DELETE",
-            "DROP",
-            "TRUNCATE",
-            "shutdown",
-            "reboot",
-            "kill",
-            "pkill"
-        ],
+        "forbidden_keywords": [],
         "allowed_commands": [
-            "git clone https://github.com/Maqsood32595/agenttunnel.github.io.git",
-            "git pull",
-            "ls",
-            "pwd",
             "cat",
-            "echo"
+            "nano",
+            "vi"
         ],
         "command_whitelist_mode": "strict"
     },
     "DevOps-Tunnel": {
-        "description": "Read-only operations + safe git",
+        "description": "Development tunnel - read-only operations",
         "allowed_methods": [
             "GET",
             "POST"
         ],
         "allowed_paths": [],
         "forbidden_keywords": [
+            "rm -rf",
             "DELETE",
             "DROP",
-            "TRUNCATE",
-            "DESTROY",
-            "REMOVE",
-            "rm -rf",
-            "dd if",
-            "mkfs",
-            "shutdown"
+            "shutdown",
+            "reboot"
         ],
         "allowed_commands": [
-            "git status",
-            "git log",
             "ls",
             "cat",
+            "pwd",
             "grep",
-            "find",
-            "pwd"
-        ]
+            "find"
+        ],
+        "command_whitelist_mode": "strict"
     },
-    "Monitor-Tunnel": {
-        "description": "Read-only monitoring access",
+    "PublicViewer": {
+        "description": "Read-only status check",
         "allowed_methods": [
             "GET"
         ],
         "allowed_paths": [
-            "/health",
-            "/metrics",
             "/status"
         ],
         "forbidden_keywords": [],
-        "allowed_commands": [
-            "ps aux",
-            "df -h",
-            "free -h",
-            "uptime"
-        ]
-    },
-    "PublicViewer": {
-        "description": "Minimal - status check only",
-        "allowed_methods": [
-            "GET"
-        ],
-        "allowed_paths": [
-            "/status"
-        ],
-        "forbidden_keywords": [
-            "UPDATE",
-            "DELETE",
-            "MODIFY",
-            "WRITE",
-            "PAY",
-            "git",
-            "npm",
-            "apt",
-            "curl",
-            "wget"
-        ],
-        "allowed_commands": []
+        "allowed_commands": [],
+        "command_whitelist_mode": "strict"
     }
 }
