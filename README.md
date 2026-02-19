@@ -1,158 +1,89 @@
-# AgentTunnel 🛡️ (test4 - Production Ready)
+# AgentTunnel Test5 Branch
 
-**Two-Tier Agent Architecture: OpenClaw Free, Sub-Agents Caged**
+Self-contained tunnel server built with OpenClaw for deterministic AI agent execution.
 
----
+## Overview
 
-## ⚡ Installation (One Command)
+This tunnel server provides a secure, policy-enforced environment for AI agents to execute commands with deterministic behavior. It converts the probabilistic nature of LLMs into reliable, production-ready execution through strict command whitelisting and validation.
 
-SSH into your GCloud server and run:
+## Features
+
+- **Port 4000**: Runs on dedicated port (not 3000, not 18789)
+- **Policy-based security**: Command whitelisting and validation
+- **Agent management**: Create/delete tunnels and agents via API
+- **Deterministic execution**: Converts LLM probabilistic behavior into reliable outcomes
+- **Self-contained**: No dependencies on existing AgentTunnel installations
+
+## Architecture
+
+### Server Components
+- `server.js`: Main HTTP server with REST API endpoints
+- `auth/policies.json`: Configuration file for tunnels and agents
+
+### API Endpoints
+
+#### Admin Endpoints (x-admin-key: openclaw-master)
+- `POST /admin/tunnel/create` - Create new tunnels with command whitelists
+- `POST /admin/agent/create` - Create agents assigned to tunnels
+
+#### Agent Endpoints (x-agent-key: <generated>)
+- `POST /validate` - Check if commands are allowed for agents
+
+#### Public Endpoints
+- `GET /status` - List all tunnels and agents
+- `GET /health` - Server status and health information
+
+## Security Model
+
+### Command Whitelisting
+Each tunnel defines a specific set of allowed commands. Agents can only execute commands from their tunnel's whitelist.
+
+### Authentication
+- **Admin**: Static key `openclaw-master`
+- **Agents**: Generated API keys with tunnel assignment
+
+### Policy Enforcement
+Commands are validated against tunnel-specific whitelists before execution, ensuring deterministic behavior regardless of LLM suggestions.
+
+## Usage Example
 
 ```bash
-curl -s https://raw.githubusercontent.com/Maqsood32595/agenttunnel.github.io/test4/install.sh | bash
-```
-
-**That's it.** The script handles everything automatically.
-
----
-
-## 🏗️ How It Works
-
-```
-You (WhatsApp)
-      ↓
-OpenClaw (UNCAGED - internal validation, no tunnel delay)
-      ↓ uses orchestrator API to create tunnels
-Sub-Agent 1        Sub-Agent 2        Sub-Agent 3
-(CAGED: only       (CAGED: only       (CAGED: only
- git pull)          pay 1 rupee)       read files)
-```
-
-### OpenClaw Config (`openclaw.json`):
-- **Main agent:** `validation: internal` → No tunnel overhead, instant responses
-- **Sub-agents:** `validation: tunnel` → Forced through port 3000
-- **Max spawn depth:** 2 (sub-agents cannot spawn more sub-agents)
-
----
-
-## 👑 OpenClaw Orchestrator API
-
-API Key: `orchestrator_key_openclaw`
-
-### Create a tunnel for a new sub-agent
-```bash
-curl -X POST http://localhost:3000/orchestrator/tunnels/create \
-  -H "x-api-key: orchestrator_key_openclaw" \
+# Create a tunnel for deploying an app
+curl -X POST http://localhost:4000/admin/tunnel/create \
+  -H "x-admin-key: openclaw-master" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "MyTask-Tunnel",
-    "description": "Sub-agent for deploying app",
-    "allowed_commands": ["git pull", "pm2 restart myapp"],
-    "allowed_methods": ["POST"]
-  }'
-```
+  -d '{"name": "deploy-tunnel", "allowed_commands": ["git pull", "npm install", "pm2 restart app"]}'
 
-### Create a sub-agent API key
-```bash
-curl -X POST http://localhost:3000/orchestrator/agents/create \
-  -H "x-api-key: orchestrator_key_openclaw" \
+# Create an agent for that tunnel
+curl -X POST http://localhost:4000/admin/agent/create \
+  -H "x-admin-key: openclaw-master" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Deploy Agent",
-    "tunnel": "MyTask-Tunnel"
-  }'
+  -d '{"name": "deploy-agent", "tunnel": "deploy-tunnel"}'
 ```
 
-### Spawn sub-agent with that key (OpenClaw TUI)
-```
-Orchestrate a new sub-agent for the task: deploy my app.
-Instructions:
-1. Spawn using /spawn command
-2. Initialize with validation: tunnel
-3. Use API key returned from orchestrator/agents/create
-4. Hard Guardrail: Every command must be validated via localhost:3000. If tunnel is down, wait and retry, never bypass.
-```
+## Deterministic Execution Benefits
 
----
+This tunnel server addresses the core challenge of using LLMs in production environments:
 
-## 🔒 Worker Validation
+- **Eliminates the '90% Flake' problem**: No more occasional hallucinations or skipped steps
+- **Converts probabilistic to deterministic**: LLM suggestions are constrained to safe, predefined paths
+- **Enterprise-ready**: Hard constraints instead of soft prompts
+- **Bowling bumper effect**: Agents can make decisions within safe boundaries but cannot deviate into dangerous territory
 
-Sub-agents use their own API key and get checked:
-
-```bash
-# Allowed (in whitelist)
-curl -X POST http://localhost:3000/validate \
-  -H "x-api-key: <worker-api-key>" \
-  -H "Content-Type: application/json" \
-  -d '{"command": "git pull"}'
-# → {"success":true}
-
-# Blocked (not in whitelist)
-curl -X POST http://localhost:3000/validate \
-  -H "x-api-key: <worker-api-key>" \
-  -H "Content-Type: application/json" \
-  -d '{"command": "rm -rf /"}'
-# → {"error":"Command 'rm -rf /' not in whitelist"}
-```
-
----
-
-## 🔑 Default API Keys
-
-| Key | Role | Access |
-|-----|------|--------|
-| `orchestrator_key_openclaw` | Orchestrator | Full - create/manage tunnels |
-| `pilot_tier2_xyz789` | Worker | DevOps-Tunnel (ls, cat, pwd) |
-| `demo_tier1_abc123` | Worker | PublicViewer (status only) |
-
----
-
-## ⚡ Key Differences from Previous Branches
-
-| Feature | test1 | test2 | test3 | test4 |
-|---------|-------|-------|-------|-------|
-| GitOps | ✅ | ❌ | ❌ | ❌ |
-| Strict enforcement | ❌ | ✅ | ✅ | ✅ |
-| Two-tier | ❌ | ❌ | ✅ | ✅ |
-| Auto-install script | ❌ | ❌ | ❌ | ✅ |
-| openclaw.json config | ❌ | ❌ | ❌ | ✅ |
-| OpenClaw uncaged | ❌ | ❌ | ✅ | ✅ |
-
----
-
-## 📂 Files
+## File Structure
 
 ```
-gateway.js          - Main two-tier server
-openclaw.json       - OpenClaw tier config (copy to ~/.openclaw/)
-install.sh          - Automated install script
-auth/
-  tunnels.json      - Worker tunnel policies (auto-reloads)
-  api_keys.json     - Orchestrator + worker API keys
-  middleware.js     - Authentication layer
-tools/
-  tunnel_exec.sh    - Command wrapper for manual testing
+~/my-tunnel/
+├── server.js           # The enforcement engine
+├── auth/
+│   └── policies.json   # The source of truth
+└── README.md           # This documentation
 ```
 
----
+## Development
 
-## 🆘 Troubleshooting
-
-**OpenClaw getting stuck in tunnel?**
-→ Check `~/.openclaw/openclaw.json` has `"main": { "validation": "internal" }`
-
-**Tunnel not running?**
-```bash
-cd ~/.openclaw/workspace/agenttunnel.github.io
-node gateway.js &
-```
-
-**Port 3000 already in use?**
-```bash
-fuser -k 3000/tcp
-```
-
----
+This tunnel server was built using OpenClaw and represents a fundamental shift from **Prompt Engineering** to **Policy Engineering**. It demonstrates how to make AI agents reliable in production through strict policy enforcement rather than trust-based prompts.
 
 ## License
-MIT
+
+This project is part of the OpenClaw ecosystem and follows its licensing terms.
