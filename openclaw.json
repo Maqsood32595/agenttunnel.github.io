@@ -1,10 +1,4 @@
 {
-    "gateway": {
-        "port": 3000,
-        "validation": {
-            "mode": "internal"
-        }
-    },
     "agents": {
         "defaults": {
             "validation": "tunnel",
