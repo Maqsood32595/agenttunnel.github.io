@@ -1,118 +1,99 @@
-# AgentTunnel 🛡️ (Two-Tier Architecture - test3)
+# AgentTunnel 🛡️ (test4 - Production Ready)
 
-**Orchestrator + Worker Agent Policy Enforcer**
-
-OpenClaw is the **uncaged orchestrator** with full control. Worker agents are **caged** inside their specific tunnels.
+**Two-Tier Agent Architecture: OpenClaw Free, Sub-Agents Caged**
 
 ---
 
-## 🏗️ Architecture
+## ⚡ Installation (One Command)
+
+SSH into your GCloud server and run:
+
+```bash
+curl -s https://raw.githubusercontent.com/Maqsood32595/agenttunnel.github.io/test4/install.sh | bash
+```
+
+**That's it.** The script handles everything automatically.
+
+---
+
+## 🏗️ How It Works
 
 ```
 You (WhatsApp)
       ↓
-OpenClaw (Orchestrator - UNCAGED)
-      ↓ creates tunnels for ↓
-┌─────────────────────────────────────┐
-│                                     │
-Payment Agent    DevOps Agent    Data Agent
-(tunnel: pay     (tunnel: read   (tunnel: read
- 1 rupee only)    files only)     DB only)
+OpenClaw (UNCAGED - internal validation, no tunnel delay)
+      ↓ uses orchestrator API to create tunnels
+Sub-Agent 1        Sub-Agent 2        Sub-Agent 3
+(CAGED: only       (CAGED: only       (CAGED: only
+ git pull)          pay 1 rupee)       read files)
 ```
+
+### OpenClaw Config (`openclaw.json`):
+- **Main agent:** `validation: internal` → No tunnel overhead, instant responses
+- **Sub-agents:** `validation: tunnel` → Forced through port 3000
+- **Max spawn depth:** 2 (sub-agents cannot spawn more sub-agents)
 
 ---
 
-## 🚀 Quick Start
+## 👑 OpenClaw Orchestrator API
 
-```bash
-git clone -b test3 https://github.com/Maqsood32595/agenttunnel.github.io.git
-cd agenttunnel.github.io
-node gateway.js
-```
+API Key: `orchestrator_key_openclaw`
 
----
-
-## 👑 Orchestrator API (OpenClaw - Full Access)
-
-Use API key: `orchestrator_key_openclaw`
-
-### List all tunnels
-```bash
-curl http://localhost:3000/orchestrator/tunnels \
-  -H "x-api-key: orchestrator_key_openclaw"
-```
-
-### Create a tunnel for a new worker agent
+### Create a tunnel for a new sub-agent
 ```bash
 curl -X POST http://localhost:3000/orchestrator/tunnels/create \
   -H "x-api-key: orchestrator_key_openclaw" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Payment-Tunnel",
-    "description": "Payment worker - 1 rupee only",
-    "allowed_commands": ["pay 1 rupee to maqsood"],
+    "name": "MyTask-Tunnel",
+    "description": "Sub-agent for deploying app",
+    "allowed_commands": ["git pull", "pm2 restart myapp"],
     "allowed_methods": ["POST"]
   }'
 ```
 
-### Create a worker agent API key
+### Create a sub-agent API key
 ```bash
 curl -X POST http://localhost:3000/orchestrator/agents/create \
   -H "x-api-key: orchestrator_key_openclaw" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Payment Agent",
-    "tunnel": "Payment-Tunnel"
+    "name": "Deploy Agent",
+    "tunnel": "MyTask-Tunnel"
   }'
 ```
 
-### Update a tunnel (add more commands)
-```bash
-curl -X POST http://localhost:3000/orchestrator/tunnels/update \
-  -H "x-api-key: orchestrator_key_openclaw" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "DevOps-Tunnel",
-    "allowed_commands": ["ls", "cat", "pwd", "git pull"]
-  }'
+### Spawn sub-agent with that key (OpenClaw TUI)
 ```
-
-### Delete a tunnel
-```bash
-curl -X POST http://localhost:3000/orchestrator/tunnels/delete \
-  -H "x-api-key: orchestrator_key_openclaw" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Payment-Tunnel"}'
-```
-
-### List all worker agents
-```bash
-curl http://localhost:3000/orchestrator/agents \
-  -H "x-api-key: orchestrator_key_openclaw"
+Orchestrate a new sub-agent for the task: deploy my app.
+Instructions:
+1. Spawn using /spawn command
+2. Initialize with validation: tunnel
+3. Use API key returned from orchestrator/agents/create
+4. Hard Guardrail: Every command must be validated via localhost:3000. If tunnel is down, wait and retry, never bypass.
 ```
 
 ---
 
-## 🔒 Worker Agent Validation
+## 🔒 Worker Validation
 
-Workers use their own API keys and are caged in their tunnel.
+Sub-agents use their own API key and get checked:
 
 ```bash
-# Worker validates a command (will be checked against their tunnel)
+# Allowed (in whitelist)
 curl -X POST http://localhost:3000/validate \
-  -H "x-api-key: pilot_tier2_xyz789" \
+  -H "x-api-key: <worker-api-key>" \
   -H "Content-Type: application/json" \
-  -d '{"command": "ls"}'
+  -d '{"command": "git pull"}'
+# → {"success":true}
+
+# Blocked (not in whitelist)
+curl -X POST http://localhost:3000/validate \
+  -H "x-api-key: <worker-api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "rm -rf /"}'
+# → {"error":"Command 'rm -rf /' not in whitelist"}
 ```
-
----
-
-## 📂 Files
-
-- `gateway.js` - Main server with two-tier logic
-- `auth/tunnels.json` - Worker tunnel policies
-- `auth/api_keys.json` - Orchestrator + worker API keys
-- `auth/middleware.js` - Authentication
 
 ---
 
@@ -121,19 +102,55 @@ curl -X POST http://localhost:3000/validate \
 | Key | Role | Access |
 |-----|------|--------|
 | `orchestrator_key_openclaw` | Orchestrator | Full - create/manage tunnels |
-| `pilot_tier2_xyz789` | Worker | DevOps-Tunnel only |
-| `demo_tier1_abc123` | Worker | PublicViewer only |
+| `pilot_tier2_xyz789` | Worker | DevOps-Tunnel (ls, cat, pwd) |
+| `demo_tier1_abc123` | Worker | PublicViewer (status only) |
 
 ---
 
-## ⚡ Key Differences from test2
+## ⚡ Key Differences from Previous Branches
 
-| Feature | test2 | test3 |
-|---------|-------|-------|
-| OpenClaw access | Caged | Uncaged (orchestrator) |
-| Tunnel management | Manual file edit | API-driven |
-| Worker agents | Single policy | Per-agent policies |
-| Dynamic rules | File watch | API + file watch |
+| Feature | test1 | test2 | test3 | test4 |
+|---------|-------|-------|-------|-------|
+| GitOps | ✅ | ❌ | ❌ | ❌ |
+| Strict enforcement | ❌ | ✅ | ✅ | ✅ |
+| Two-tier | ❌ | ❌ | ✅ | ✅ |
+| Auto-install script | ❌ | ❌ | ❌ | ✅ |
+| openclaw.json config | ❌ | ❌ | ❌ | ✅ |
+| OpenClaw uncaged | ❌ | ❌ | ✅ | ✅ |
+
+---
+
+## 📂 Files
+
+```
+gateway.js          - Main two-tier server
+openclaw.json       - OpenClaw tier config (copy to ~/.openclaw/)
+install.sh          - Automated install script
+auth/
+  tunnels.json      - Worker tunnel policies (auto-reloads)
+  api_keys.json     - Orchestrator + worker API keys
+  middleware.js     - Authentication layer
+tools/
+  tunnel_exec.sh    - Command wrapper for manual testing
+```
+
+---
+
+## 🆘 Troubleshooting
+
+**OpenClaw getting stuck in tunnel?**
+→ Check `~/.openclaw/openclaw.json` has `"main": { "validation": "internal" }`
+
+**Tunnel not running?**
+```bash
+cd ~/.openclaw/workspace/agenttunnel.github.io
+node gateway.js &
+```
+
+**Port 3000 already in use?**
+```bash
+fuser -k 3000/tcp
+```
 
 ---
 

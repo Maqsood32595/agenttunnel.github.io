@@ -1,0 +1,26 @@
+{
+    "gateway": {
+        "port": 3000,
+        "validation": {
+            "mode": "internal"
+        }
+    },
+    "agents": {
+        "defaults": {
+            "validation": "tunnel",
+            "dangerMode": false,
+            "tunnelUrl": "http://localhost:3000/validate",
+            "tunnelApiKey": "",
+            "subagents": {
+                "maxSpawnDepth": 2,
+                "enforceTunnel": true
+            }
+        },
+        "main": {
+            "validation": "internal",
+            "dangerMode": false,
+            "apiKey": "orchestrator_key_openclaw",
+            "orchestratorUrl": "http://localhost:3000/orchestrator"
+        }
+    }
+}
