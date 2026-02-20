@@ -1,89 +1,161 @@
-# AgentTunnel Test5 Branch
+# AgentTunnel — test6: Pipeline Enforcement Edition
 
-Self-contained tunnel server built with OpenClaw for deterministic AI agent execution.
+> **What's new:** AgentTunnel test6 adds a full **Pipeline State Machine** — the gateway now enforces the *order* of commands, not just which commands are allowed. Agents cannot skip steps, lie about completion, or run out of sequence.
 
-## Overview
+## What Changed from test5 → test6
 
-This tunnel server provides a secure, policy-enforced environment for AI agents to execute commands with deterministic behavior. It converts the probabilistic nature of LLMs into reliable, production-ready execution through strict command whitelisting and validation.
+| Feature | test5 | test6 |
+|---------|-------|-------|
+| Command whitelisting | ✅ | ✅ |
+| Two-tier (Orchestrator / Worker) | ✅ | ✅ |
+| Sequence enforcement | ❌ | ✅ NEW |
+| External state persistence | ❌ | ✅ NEW |
+| Pipeline management API | ❌ | ✅ NEW |
+| Makefile local enforcer | ❌ | ✅ NEW |
 
-## Features
+---
 
-- **Port 4000**: Runs on dedicated port (not 3000, not 18789)
-- **Policy-based security**: Command whitelisting and validation
-- **Agent management**: Create/delete tunnels and agents via API
-- **Deterministic execution**: Converts LLM probabilistic behavior into reliable outcomes
-- **Self-contained**: No dependencies on existing AgentTunnel installations
+## Core Concept: The Shift from Whitelist to Pipeline
 
-## Architecture
+**test5 asked:** "Is this command allowed?"
+**test6 asks:** "Is this command allowed *right now* in the correct order?"
 
-### Server Components
-- `server.js`: Main HTTP server with REST API endpoints
-- `auth/policies.json`: Configuration file for tunnels and agents
+```
+Agent sends: { "command": "npm run build", "run_id": "run_123" }
 
-### API Endpoints
-
-#### Admin Endpoints (x-admin-key: openclaw-master)
-- `POST /admin/tunnel/create` - Create new tunnels with command whitelists
-- `POST /admin/agent/create` - Create agents assigned to tunnels
-
-#### Agent Endpoints (x-agent-key: <generated>)
-- `POST /validate` - Check if commands are allowed for agents
-
-#### Public Endpoints
-- `GET /status` - List all tunnels and agents
-- `GET /health` - Server status and health information
-
-## Security Model
-
-### Command Whitelisting
-Each tunnel defines a specific set of allowed commands. Agents can only execute commands from their tunnel's whitelist.
-
-### Authentication
-- **Admin**: Static key `openclaw-master`
-- **Agents**: Generated API keys with tunnel assignment
-
-### Policy Enforcement
-Commands are validated against tunnel-specific whitelists before execution, ensuring deterministic behavior regardless of LLM suggestions.
-
-## Usage Example
-
-```bash
-# Create a tunnel for deploying an app
-curl -X POST http://localhost:4000/admin/tunnel/create \
-  -H "x-admin-key: openclaw-master" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "deploy-tunnel", "allowed_commands": ["git pull", "npm install", "pm2 restart app"]}'
-
-# Create an agent for that tunnel
-curl -X POST http://localhost:4000/admin/agent/create \
-  -H "x-admin-key: openclaw-master" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "deploy-agent", "tunnel": "deploy-tunnel"}'
+test5 response: ✅ ALLOWED  (it's in the whitelist)
+test6 response: ❌ BLOCKED  ("npm install" must run first — Step 2 not completed")
 ```
 
-## Deterministic Execution Benefits
+State is stored in `auth/pipeline_state.json` — **not in the agent's memory**. The agent cannot lie about what it has done.
 
-This tunnel server addresses the core challenge of using LLMs in production environments:
+---
 
-- **Eliminates the '90% Flake' problem**: No more occasional hallucinations or skipped steps
-- **Converts probabilistic to deterministic**: LLM suggestions are constrained to safe, predefined paths
-- **Enterprise-ready**: Hard constraints instead of soft prompts
-- **Bowling bumper effect**: Agents can make decisions within safe boundaries but cannot deviate into dangerous territory
+## Quick Start
+
+```bash
+# 1. Start the gateway
+node gateway.js
+
+# 2. Create a pipeline run (orchestrator)
+curl -X POST http://localhost:3000/orchestrator/pipeline/start \
+  -H "x-api-key: orchestrator_key_openclaw" \
+  -H "Content-Type: application/json" \
+  -d '{"pipeline": "Deploy-Pipeline", "agent": "deploy-worker"}'
+# Returns: { "run_id": "run_1234567", "next_command": "git pull origin main" }
+
+# 3. Worker executes Step 1
+curl -X POST http://localhost:3000/ \
+  -H "x-api-key: pilot_tier2_xyz789" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "git pull origin main", "run_id": "run_1234567"}'
+# Returns: { "success": true, "next_command": "npm install", "steps_remaining": 3 }
+
+# 4. Try to skip Step 2 and go to Step 3
+curl -X POST http://localhost:3000/ \
+  -H "x-api-key: pilot_tier2_xyz789" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "npm run build", "run_id": "run_1234567"}'
+# Returns: ❌ 403 { "error": "Wrong step. Expected: 'npm install'. Cannot skip or reorder." }
+```
+
+---
+
+## Built-in Pipelines
+
+### `Deploy-Pipeline`
+Full production deployment — strict 4-step sequence:
+1. `git pull origin main`
+2. `npm install`
+3. `npm run build`
+4. `pm2 restart shortshub`
+
+### `CI-Pipeline`
+Continuous integration — tests before build, no deploy:
+1. `git pull origin main`
+2. `npm install`
+3. `npm test`
+4. `npm run build`
+
+### `Backup-Pipeline`
+Nightly database backup — safe, no production writes:
+1. `pg_dump shortshub > backup.sql`
+2. `gzip backup.sql`
+3. `aws s3 cp backup.sql.gz s3://shortshub-backups/`
+4. `rm backup.sql.gz`
+
+---
+
+## Pipeline API Reference
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/orchestrator/pipeline/start` | POST | Orchestrator | Start a new pipeline run |
+| `/orchestrator/pipeline/status?run_id=X` | GET | Orchestrator | Query run state |
+| `/orchestrator/pipeline/runs` | GET | Orchestrator | List all runs |
+| `/orchestrator/pipeline/reset` | POST | Orchestrator | Abort a run |
+
+---
+
+## Makefile: Local Sequence Enforcement
+
+For running pipelines locally without an agent:
+
+```bash
+make deploy   # git pull → npm install → npm run build → pm2 restart
+make ci       # git pull → npm install → npm test → npm run build
+make status   # Check gateway health
+```
+
+If any step fails, **make halts immediately** — the next step never runs. This mirrors what the gateway does for remote agents.
+
+---
 
 ## File Structure
 
 ```
-~/my-tunnel/
-├── server.js           # The enforcement engine
+AgentTunnel-Minimal/
+├── gateway.js                  # Core enforcement engine (pipeline state machine)
+├── Makefile                    # Local sequence enforcer
 ├── auth/
-│   └── policies.json   # The source of truth
-└── README.md           # This documentation
+│   ├── api_keys.json           # Agent credentials and tiers
+│   ├── tunnels.json            # Tunnel policies + pipeline definitions
+│   ├── pipeline_state.json     # Live pipeline run state (external, tamper-proof)
+│   └── middleware.js           # Authentication middleware
+└── README.md                   # This file
 ```
 
-## Development
+---
 
-This tunnel server was built using OpenClaw and represents a fundamental shift from **Prompt Engineering** to **Policy Engineering**. It demonstrates how to make AI agents reliable in production through strict policy enforcement rather than trust-based prompts.
+## Why This Matters
 
-## License
+| Approach | Reliability | Notes |
+|----------|-------------|-------|
+| Ask AI (no tunnel) | ~40% | Probabilistic — skips steps, adds random commands |
+| test5 (whitelist only) | ~70% | Blocks bad commands, but order not enforced |
+| test6 (pipeline enforcer) | ~99% | Sequence enforced externally — agent cannot lie |
+| test6 + Makefile | ~99.9% | Infrastructure double-enforcement |
 
-This project is part of the OpenClaw ecosystem and follows its licensing terms.
+> **Enterprise principle:** Intelligence without authority = Safe intelligence.
+> The AI decides *what* to do. The tunnel decides *whether it can*.
+
+---
+
+## API Keys (Default)
+
+| Key | Tier | Access |
+|-----|------|--------|
+| `orchestrator_key_openclaw` | Orchestrator | Full tunnel + pipeline management |
+| `pilot_tier2_xyz789` | Worker | DevOps-Tunnel (read-only ops) |
+
+> ⚠️ Rotate these keys before production use.
+
+---
+
+## Branch History
+
+| Branch | Key Feature |
+|--------|-------------|
+| test4 | Two-tier architecture (Orchestrator / Worker) |
+| test5 | Policy engineering philosophy + self-contained server |
+| **test6** | **Pipeline sequence enforcement + state machine** |

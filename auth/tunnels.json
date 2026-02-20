@@ -39,5 +39,131 @@
         "forbidden_keywords": [],
         "allowed_commands": [],
         "command_whitelist_mode": "strict"
+    },
+    "Deploy-Pipeline": {
+        "description": "NEW (test6): Full deployment pipeline with strict sequence enforcement. Agent CANNOT skip or reorder steps.",
+        "allowed_methods": [
+            "POST"
+        ],
+        "allowed_paths": [],
+        "forbidden_keywords": [
+            "rm -rf",
+            "drop table",
+            "git clean -fd",
+            "kill",
+            "reboot"
+        ],
+        "allowed_commands": [],
+        "command_whitelist_mode": "strict",
+        "pipeline": {
+            "description": "Happy path deployment — must run all 4 steps in exact order",
+            "enforce_sequence": true,
+            "steps": [
+                {
+                    "order": 1,
+                    "command": "git pull origin main",
+                    "description": "Pull latest code",
+                    "required": true
+                },
+                {
+                    "order": 2,
+                    "command": "npm install",
+                    "description": "Install dependencies",
+                    "required": true
+                },
+                {
+                    "order": 3,
+                    "command": "npm run build",
+                    "description": "Build the app",
+                    "required": true
+                },
+                {
+                    "order": 4,
+                    "command": "pm2 restart shortshub",
+                    "description": "Restart the live app",
+                    "required": true
+                }
+            ]
+        }
+    },
+    "CI-Pipeline": {
+        "description": "NEW (test6): CI testing pipeline — runs tests before build. No deploy step.",
+        "allowed_methods": [
+            "POST"
+        ],
+        "allowed_paths": [],
+        "forbidden_keywords": [],
+        "allowed_commands": [],
+        "command_whitelist_mode": "strict",
+        "pipeline": {
+            "description": "Continuous integration — test before merge",
+            "enforce_sequence": true,
+            "steps": [
+                {
+                    "order": 1,
+                    "command": "git pull origin main",
+                    "description": "Fetch latest code",
+                    "required": true
+                },
+                {
+                    "order": 2,
+                    "command": "npm install",
+                    "description": "Install deps",
+                    "required": true
+                },
+                {
+                    "order": 3,
+                    "command": "npm test",
+                    "description": "Run test suite",
+                    "required": true
+                },
+                {
+                    "order": 4,
+                    "command": "npm run build",
+                    "description": "Build if tests pass",
+                    "required": true
+                }
+            ]
+        }
+    },
+    "Backup-Pipeline": {
+        "description": "NEW (test6): Nightly backup pipeline — database dump + sync to S3.",
+        "allowed_methods": [
+            "POST"
+        ],
+        "allowed_paths": [],
+        "forbidden_keywords": [],
+        "allowed_commands": [],
+        "command_whitelist_mode": "strict",
+        "pipeline": {
+            "description": "Safe nightly backup — cannot delete or overwrite production",
+            "enforce_sequence": true,
+            "steps": [
+                {
+                    "order": 1,
+                    "command": "pg_dump shortshub > backup.sql",
+                    "description": "Dump database",
+                    "required": true
+                },
+                {
+                    "order": 2,
+                    "command": "gzip backup.sql",
+                    "description": "Compress dump",
+                    "required": true
+                },
+                {
+                    "order": 3,
+                    "command": "aws s3 cp backup.sql.gz s3://shortshub-backups/",
+                    "description": "Upload to S3",
+                    "required": true
+                },
+                {
+                    "order": 4,
+                    "command": "rm backup.sql.gz",
+                    "description": "Clean local copy",
+                    "required": true
+                }
+            ]
+        }
     }
 }
