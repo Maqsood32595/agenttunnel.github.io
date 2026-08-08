@@ -53,13 +53,21 @@ x-api-key: pilot_tier2_xyz789
 }
 ```
 
-## Architecture
+## Architecture: The "Sandwich Defense"
+
+AgentTunnel implements the **Sandwich Architecture** (or Sandwich Defense) for AI safety. The LLM is isolated ("sandwiched") between an Input UI and a strict Output Gateway. It has zero direct access to the external internet or local system.
 
 ```
-You (WhatsApp) → OpenClaw → AgentTunnel (Filter) → Allowed Actions
-                                  ↓
-                            GitHub (Rules)
+[ Top Bread ]   You (WhatsApp/UI) 
+                     ↓
+[ The Meat  ]   OpenClaw (LLM / Agent) generates command
+                     ↓
+[ Bottom Bread] AgentTunnel (Gateway / Filter) validates command → Allowed Actions
+                     ↓
+                GitHub (Zero-Trust GitOps Rules)
 ```
+
+Read the full [Sandwich Architecture Deep Dive](SANDWICH_ARCHITECTURE.md) to understand why this pattern defeats prompt injection and agent hijacking.
 
 ## Files
 - `gateway.js` - Main server
